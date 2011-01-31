@@ -22,5 +22,9 @@ public class AppStoreEntry {
 	public int appRating;
 	public TColor colorOne;
 	public float colorOneF;
+	public TColor colorTwo;
+	public float colorTwoF;
+	public TColor colorThree;
+	public float colorThreeF;
 	
 }

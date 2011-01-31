@@ -1,20 +1,14 @@
 package com.fifthrevision;
 
-import java.io.File;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
+import java.awt.event.KeyEvent;
 
 import processing.core.PApplet;
 import processing.core.PImage;
 import toxi.color.TColor;
 
-import com.almworks.sqlite4java.SQLiteConnection;
-import com.almworks.sqlite4java.SQLiteException;
-import com.almworks.sqlite4java.SQLiteStatement;
+public class AppStoreViz extends PApplet implements IDataLoaderListener {
 
-public class AppStoreViz extends PApplet {
-
+	private static final long serialVersionUID = 1L;
 	public static final String APP_NAME = "App Store Visualization";
 	public static final String APP_VERSION = "20110130";
 	
@@ -24,19 +18,29 @@ public class AppStoreViz extends PApplet {
 	public static final String IMG_FOLDER = "images/";
 	public static final String EXT_JPG = ".jpg";
 	
-	public static int WIDTH = 1096;
-	public static int HEIGHT = 1096;
+	public static int WIDTH = 1024;
+	public static int HEIGHT = 768;
+	
+	public static int ZOOM_THRESHOLD = 32;
+	public static int SHIFT_STEPS = 3;
 	
 	// public static int DRAW_WIDTH = 550;
 	public int drawWidth;
 	public int drawHeight;
-	public static int OFFSET = 0;
+	// public static int OFFSET = 0;
 	public AppStoreEntry[][] entriesArr;
 	
 	public int previewCWidth = 20;
 	public int previewCHeight = 20;
+		
+	public int state = 0;
+	public int zoomLevel = 2;
+	public int startPointX = 0;
+	public int startPointY = 0;
+	public int maxStartPointX = 0;
+	public int maxStartPointY = 0;
 	
-	public ArrayList<AppStoreEntry> entries = new ArrayList<AppStoreEntry>();
+	private boolean[] keys = new boolean[526];
 	
 	/**
 	 * Setup and initialization phase of the application
@@ -45,45 +49,158 @@ public class AppStoreViz extends PApplet {
 	public void setup() {
 		size(WIDTH, HEIGHT, P3D);
 		frame.setTitle(APP_NAME + APP_VERSION);
-		loadData();
+		
+		AppStoreDataLoader loader = new AppStoreDataLoader(this);
+		Thread t = new Thread(loader);
+		t.start();
 	}
 	
 	@Override
 	public void draw() {
 		background(0);
-		// int drawHeight = entries.size() / DRAW_WIDTH;
-		
-		for(int i = 0; i < drawHeight; i++) {
-			for(int j = 0; j < drawWidth; j++) {
-				// int index = i *  + j;
-				if(entriesArr[i][j] == null) break;
-				TColor c = entriesArr[i][j].colorOne;
-				fill(c.toARGB());
-				stroke(c.toARGB());
-				rect(OFFSET + j * 2, OFFSET + i * 2, 2, 2);
+
+		if(state == 0) {
+			PImage startImg = loadImage("assets/apple.jpg");
+			image(startImg, WIDTH / 2 - startImg.width / 2, HEIGHT / 2 - startImg.height / 2 );
+		} else {
+			int maxHeightLength = (int) ((float) HEIGHT / zoomLevel) + startPointY;
+			int maxWidthLength = (int) ((float) WIDTH / zoomLevel) + startPointX;
+			
+			for(int i = startPointY; i < maxHeightLength; i++) {
+				for(int j = startPointX; j < maxWidthLength; j++) {
+					if(entriesArr[i][j] == null) break;
+					int thisX = (j - startPointX) * zoomLevel;
+					int thisY = (i - startPointY) * zoomLevel;
+					if(zoomLevel > ZOOM_THRESHOLD) {
+						PImage img = loadImage(FILEPATH + IMG_FOLDER + entriesArr[i][j].id + EXT_JPG);
+						image(img, thisX, thisY, zoomLevel, zoomLevel);
+					} else {
+						TColor c = entriesArr[i][j].colorOne;
+						fill(c.toARGB());
+						stroke(c.toARGB());
+						rect(thisX, thisY, zoomLevel, zoomLevel);
+					}
+				}
 			}
-		}
-		
-		int tempX = (mouseX - OFFSET) / 2;
-		int tempY = (mouseY - OFFSET) / 2;
-		if(tempX > 0 && tempX < drawHeight && tempY > 0 && tempY < drawHeight) {
-			if(entriesArr[tempY][tempX] != null) {
-				AppStoreEntry e = entriesArr[tempY][tempX]; 
-				TColor d = e.colorOne;
-				fill(d.toARGB());
-				stroke(0);
-				rect(mouseX - previewCWidth / 2, mouseY - previewCHeight / 2, previewCWidth, previewCHeight);
-				PImage img = loadImage(FILEPATH + IMG_FOLDER + entriesArr[tempY][tempX].id + EXT_JPG);
-				image(img, mouseX, mouseY);
-				fill(0);
-				text("H: " + d.hue(), mouseX - 50, mouseY + 10);
-				text("S: " + d.saturation(), mouseX - 50, mouseY + 30);
-				text("B: " + d.brightness(), mouseX - 50, mouseY + 50);
+			
+			int tempX = (mouseX) / 2;
+			int tempY = (mouseY) / 2;
+			if(tempX > 0 && tempX < drawHeight && tempY > 0 && tempY < drawHeight) {
+				if(entriesArr[tempY][tempX] != null) {
+					AppStoreEntry e = entriesArr[tempY][tempX]; 
+					TColor d = e.colorOne;
+					fill(d.toARGB());
+					stroke(0);
+					rect(mouseX - zoomLevel, mouseY - zoomLevel, zoomLevel * 2, zoomLevel * 2);
+					fill(0);
+					text("H: " + d.hue(), mouseX - 50, mouseY + 10);
+					text("S: " + d.saturation(), mouseX - 50, mouseY + 30);
+					text("B: " + d.brightness(), mouseX - 50, mouseY + 50);
+					if(zoomLevel < ZOOM_THRESHOLD) {
+						PImage img = loadImage(FILEPATH + IMG_FOLDER + entriesArr[tempY][tempX].id + EXT_JPG);
+						image(img, mouseX, mouseY);
+					}
+				}
 			}
 		}
 
 	}
+
+	public void zoomIn() {
+		if(zoomLevel < 256) {
+			zoomLevel *= 2;
+			calculateMaxStartPoints();
+		}
+	}
 	
+	public void zoomOut() {
+		if(zoomLevel > 2) {
+			zoomLevel /= 2;
+			calculateMaxStartPoints();
+		}
+	}
+	
+	private void calculateMaxStartPoints() {
+		maxStartPointX = drawWidth - (int)((float) WIDTH / zoomLevel) - 1;
+		maxStartPointY = drawHeight - (int)((float) HEIGHT / zoomLevel) - 1;
+	}
+	
+	@Override
+	public void keyPressed() {
+		keys[keyCode] = true;
+		System.out.println(keyCode);
+		
+		if(state > 0) {
+			if(checkKey(157) && checkKey(KeyEvent.VK_EQUALS)) {
+				zoomIn();
+			} else if(checkKey(157) && checkKey(KeyEvent.VK_MINUS)) {
+				zoomOut();
+			} else if(key == CODED) {
+				if(keyCode == UP) {
+					if(startPointY > 0) {
+						if(checkKey(SHIFT)) {
+							if(startPointY >= SHIFT_STEPS) {
+								startPointY -= SHIFT_STEPS;
+							} else {
+								startPointY = 0;
+							}
+						} else {
+							startPointY -= 1;
+						}
+					}
+				} else if (keyCode == DOWN) {
+					if(startPointY < maxStartPointY) {
+						if(checkKey(SHIFT)) {
+							if(startPointY < maxStartPointY - SHIFT_STEPS) {
+								startPointY += SHIFT_STEPS;
+							} else {
+								startPointY = maxStartPointY;
+							}
+						} else {
+							startPointY += 1;
+						}
+					}					
+				} else if (keyCode == LEFT) {
+					if(startPointX > 0) {
+						if(checkKey(SHIFT)) {
+							if(startPointX >= 3) {
+								startPointX -= 3;
+							} else {
+								startPointX = 0;
+							}
+						} else {
+							startPointX -= 1;
+						}
+					}
+				} else if (keyCode == RIGHT) {
+					if(startPointX < maxStartPointX) {
+						if(checkKey(SHIFT)) {
+							if(startPointX < maxStartPointX - SHIFT_STEPS) {
+								startPointX += SHIFT_STEPS;
+							} else {
+								startPointX = maxStartPointX;
+							}
+						} else {
+							startPointX += 1;
+						}
+					}
+				}
+			}
+		}
+	}
+			 
+	private boolean checkKey(int k) {
+	  if (keys.length >= k) {
+	    return keys[k];  
+	  }
+	  return false;
+	}
+	 
+	public void keyReleased() { 
+	  keys[keyCode] = false; 
+	}
+	
+	/* 
 	private int partition(Object[] sortedEntries, int left, int right) { 
 		int i = left, j = right; 
 		AppStoreEntry tmp; 
@@ -111,157 +228,15 @@ public class AppStoreViz extends PApplet {
 		if (index < right) 
 			quickSort(sortedEntries, index, right); 
 	}
+	*/
 	
-	public void loadData() {
-		SQLiteConnection db = new SQLiteConnection(new File(FILEPATH + DB_FOLDER + DB_NAME));
-		SQLiteStatement st = null;
-		
-		try {
-			db.openReadonly();
-			st = db.prepare("SELECT * FROM entries");
-			while(st.step()) {
-				AppStoreEntry entry = new AppStoreEntry();
-				entry.id = st.columnLong(0);
-				entry.url = st.columnString(1);
-				entry.name = st.columnString(2);
-				entry.price = (float) st.columnDouble(3);
-				entry.genre = st.columnString(4);
-				entry.category = st.columnString(5);
-				entry.released  = st.columnLong(6);
-				entry.version = st.columnString(7);
-				entry.size = (float) st.columnDouble(8);
-				entry.seller = st.columnString(9);
-				entry.language = st.columnString(10);
-				entry.currRating = st.columnInt(11);
-				entry.allRating = st.columnInt(12);
-				entry.numCurrRating = st.columnInt(13);
-				entry.numAllRating = st.columnInt(14);
-				entry.appRating = st.columnInt(15);
-				entry.colorOne = TColor.newHex(st.columnString(16));
-				entry.colorOneF = (float) st.columnDouble(17);
-				entries.add(entry);
-			}
-		} catch (SQLiteException e) {
-			e.printStackTrace();
-		} finally {
-			st.dispose();
-			db.dispose();
-		}
-		
-		drawHeight = drawWidth = (int) sqrt(entries.size()) + 1;
-		System.out.println(drawHeight);
-		
-		Comparator<AppStoreEntry> hueComparator = new Comparator<AppStoreEntry>() {
-			@Override
-			public int compare(AppStoreEntry o1, AppStoreEntry o2) {
-				AppStoreEntry entry1 = (AppStoreEntry) o1;
-				AppStoreEntry entry2 = (AppStoreEntry) o2;
-				float val1 = entry1.colorOne.hue();
-				float val2 = entry2.colorOne.hue();
-				if (val1 == val2)
-				  return 0;
-				if (val1 < val2)
-				  return 1;
-				return -1;
-			}
-		};
-		
-		Comparator<AppStoreEntry> brightnessComparator = new Comparator<AppStoreEntry>() {
-			@Override
-			public int compare(AppStoreEntry o1, AppStoreEntry o2) {
-				AppStoreEntry entry1 = (AppStoreEntry) o1;
-				AppStoreEntry entry2 = (AppStoreEntry) o2;
-				float val1 = entry1.colorOne.brightness();
-				float val2 = entry2.colorOne.brightness();
-				if (val1 == val2)
-				  return 0;
-				if (val1 < val2)
-				  return 1;
-				return -1;
-			}
-		};
-		
-		ArrayList<AppStoreEntry> brightEntries = new ArrayList<AppStoreEntry>();
-		ArrayList<AppStoreEntry> darkEntries = new ArrayList<AppStoreEntry>();
-		ArrayList<AppStoreEntry> normalEntries = new ArrayList<AppStoreEntry>();
-		ArrayList<AppStoreEntry> newEntries = new ArrayList<AppStoreEntry>();
-		
-		while(entries.size() > 0) {
-			AppStoreEntry e = entries.remove(0);
-			TColor c = e.colorOne;
-			if(c.saturation() < 0.15f && c.brightness() > 0.85f) {
-				brightEntries.add(e);
-			} else if(c.brightness() < 0.2f) {
-				darkEntries.add(e);
-			} else {
-				normalEntries.add(e);
-			}
-		}
-		
-		Collections.sort(brightEntries, hueComparator);
-		Collections.sort(darkEntries, hueComparator);
-		Collections.sort(normalEntries, hueComparator);		
-		
-		int brightCount = brightEntries.size() / drawHeight;
-		int darkCount = darkEntries.size() / drawHeight;
-		int normalCount = normalEntries.size() / drawHeight;
-		
-		entriesArr = new AppStoreEntry[drawHeight][drawHeight];
-	
-		int brightIndex = 0;
-		int darkIndex = 0;
-		int normalIndex = 0;
-		
-		for(int i = 0; i < drawHeight; i++) {
-			int brightRandom = (int) random(-50, 50);
-			int darkRandom = (int) random(-10, 10);
-			
-			ArrayList<AppStoreEntry> bTemp = new ArrayList<AppStoreEntry>();
-			ArrayList<AppStoreEntry> dTemp = new ArrayList<AppStoreEntry>();
-			ArrayList<AppStoreEntry> nTemp = new ArrayList<AppStoreEntry>();
-			
-			for(int j = 0; j < drawWidth; j++) {
-				if(j < brightCount + brightRandom) {
-					if(brightIndex < brightEntries.size()) {
-						// entriesArr[i][j] = brightEntries.get(brightIndex);
-						bTemp.add(brightEntries.get(brightIndex));
-						brightIndex++;
-					}
-				} else if (j > drawWidth - darkCount - darkRandom) {
-					if(darkIndex < darkEntries.size()) {
-						// entriesArr[i][j] = darkEntries.get(darkIndex);
-						dTemp.add(darkEntries.get(darkIndex));
-						darkIndex++;
-					}
-				} else {
-					if(normalIndex < normalEntries.size()) {
-						// entriesArr[i][j] = normalEntries.get(normalIndex);
-						nTemp.add(normalEntries.get(normalIndex));
-						normalIndex++;
-					}
-				}
-			}
-			
-			Collections.sort(bTemp, brightnessComparator);
-			Collections.sort(dTemp, brightnessComparator);
-			Collections.sort(nTemp, brightnessComparator);
-			
-			for(int j = 0; j < drawWidth; j++) {
-				if(j < brightCount + brightRandom) {
-					if(bTemp.size() > 0) {
-						entriesArr[i][j] = bTemp.remove(0);
-					}
-				} else if (j > drawWidth - darkCount - darkRandom) {
-					if(dTemp.size() > 0) {
-						entriesArr[i][j] = dTemp.remove(0);
-					}
-				} else {
-					if(nTemp.size() > 0) {
-						entriesArr[i][j] = nTemp.remove(0);
-					}
-				}
-			}
-		}
+	@Override
+	public void setData(AppStoreEntry[][] entries, int width, int height) {
+		this.drawWidth = width;
+		this.drawHeight = height;
+		entriesArr = entries;
+		calculateMaxStartPoints();
+		state = 1;
 	}
 	
 	/**
