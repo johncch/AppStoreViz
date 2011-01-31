@@ -148,18 +148,14 @@ public class AppStoreViz extends PApplet {
 			db.dispose();
 		}
 		
-		// Object[] sortedEntries = entries.toArray(); 
-		// quickSort(sortedEntries, 0, entries.size() - 1);
-		Collections.sort(entries, new Comparator<AppStoreEntry>() {
+		drawHeight = drawWidth = (int) sqrt(entries.size()) + 1;
+		System.out.println(drawHeight);
+		
+		Comparator<AppStoreEntry> hueComparator = new Comparator<AppStoreEntry>() {
 			@Override
 			public int compare(AppStoreEntry o1, AppStoreEntry o2) {
 				AppStoreEntry entry1 = (AppStoreEntry) o1;
 				AppStoreEntry entry2 = (AppStoreEntry) o2;
-				// int val1 = (Integer) entry1.colorOne.toARGB();
-				// int val2 = (Integer) entry2.colorOne.toARGB();
-				// long val1 = (int)(entry1.colorOne.red() * 255) << 16 | (int)(entry1.colorOne.green() * 255) << 8 | (int)(entry1.colorOne.blue() * 255);
-				// long val2 = (int)(entry2.colorOne.red() * 255) << 16 | (int)(entry2.colorOne.green() * 255) << 8 | (int)(entry2.colorOne.blue() * 255);
-				// System.out.println(val1 + ", " + val2);
 				float val1 = entry1.colorOne.hue();
 				float val2 = entry2.colorOne.hue();
 				if (val1 == val2)
@@ -168,48 +164,102 @@ public class AppStoreViz extends PApplet {
 				  return 1;
 				return -1;
 			}
-		});
+		};
 		
-		// entriesArr = entries.toArray();
-		drawHeight = drawWidth = (int) sqrt(entries.size()) + 1;
-		System.out.println(drawHeight);
+		Comparator<AppStoreEntry> brightnessComparator = new Comparator<AppStoreEntry>() {
+			@Override
+			public int compare(AppStoreEntry o1, AppStoreEntry o2) {
+				AppStoreEntry entry1 = (AppStoreEntry) o1;
+				AppStoreEntry entry2 = (AppStoreEntry) o2;
+				float val1 = entry1.colorOne.brightness();
+				float val2 = entry2.colorOne.brightness();
+				if (val1 == val2)
+				  return 0;
+				if (val1 < val2)
+				  return 1;
+				return -1;
+			}
+		};
 		
+		ArrayList<AppStoreEntry> brightEntries = new ArrayList<AppStoreEntry>();
+		ArrayList<AppStoreEntry> darkEntries = new ArrayList<AppStoreEntry>();
+		ArrayList<AppStoreEntry> normalEntries = new ArrayList<AppStoreEntry>();
 		ArrayList<AppStoreEntry> newEntries = new ArrayList<AppStoreEntry>();
 		
-		int count = 0;
 		while(entries.size() > 0) {
-			ArrayList<AppStoreEntry> sortEntries = new ArrayList<AppStoreEntry>();
-			for(int i = 0; i < drawHeight && entries.size() > 0; i++) {
-				sortEntries.add(entries.remove(0));
+			AppStoreEntry e = entries.remove(0);
+			TColor c = e.colorOne;
+			if(c.saturation() < 0.15f && c.brightness() > 0.85f) {
+				brightEntries.add(e);
+			} else if(c.brightness() < 0.2f) {
+				darkEntries.add(e);
+			} else {
+				normalEntries.add(e);
 			}
-			Collections.sort(sortEntries, new Comparator<AppStoreEntry>() {
-				@Override
-				public int compare(AppStoreEntry o1, AppStoreEntry o2) {
-					AppStoreEntry entry1 = (AppStoreEntry) o1;
-					AppStoreEntry entry2 = (AppStoreEntry) o2;
-					float val1 = entry1.colorOne.brightness();
-					float val2 = entry2.colorOne.brightness();
-					if (val1 == val2)
-					  return 0;
-					if (val1 < val2)
-					  return 1;
-					return -1;
-				}
-				
-			});
-			newEntries.addAll(sortEntries);
-			// System.out.println("test " + ++count);
 		}
 		
+		Collections.sort(brightEntries, hueComparator);
+		Collections.sort(darkEntries, hueComparator);
+		Collections.sort(normalEntries, hueComparator);		
+		
+		int brightCount = brightEntries.size() / drawHeight;
+		int darkCount = darkEntries.size() / drawHeight;
+		int normalCount = normalEntries.size() / drawHeight;
+		
 		entriesArr = new AppStoreEntry[drawHeight][drawHeight];
+	
+		int brightIndex = 0;
+		int darkIndex = 0;
+		int normalIndex = 0;
+		
 		for(int i = 0; i < drawHeight; i++) {
-			// entriesArr[i] = new AppStoreEntry[drawHeight];
+			int brightRandom = (int) random(-50, 50);
+			int darkRandom = (int) random(-10, 10);
+			
+			ArrayList<AppStoreEntry> bTemp = new ArrayList<AppStoreEntry>();
+			ArrayList<AppStoreEntry> dTemp = new ArrayList<AppStoreEntry>();
+			ArrayList<AppStoreEntry> nTemp = new ArrayList<AppStoreEntry>();
+			
 			for(int j = 0; j < drawWidth; j++) {
-				int index = i * drawWidth + j;
-				if(index >= newEntries.size()) break;
-				entriesArr[i][j] = (AppStoreEntry) newEntries.get(index);
-				// if(index >= sortedEntries.length) break;
-				// entriesArr[i][j] = (AppStoreEntry) sortedEntries[index];
+				if(j < brightCount + brightRandom) {
+					if(brightIndex < brightEntries.size()) {
+						// entriesArr[i][j] = brightEntries.get(brightIndex);
+						bTemp.add(brightEntries.get(brightIndex));
+						brightIndex++;
+					}
+				} else if (j > drawWidth - darkCount - darkRandom) {
+					if(darkIndex < darkEntries.size()) {
+						// entriesArr[i][j] = darkEntries.get(darkIndex);
+						dTemp.add(darkEntries.get(darkIndex));
+						darkIndex++;
+					}
+				} else {
+					if(normalIndex < normalEntries.size()) {
+						// entriesArr[i][j] = normalEntries.get(normalIndex);
+						nTemp.add(normalEntries.get(normalIndex));
+						normalIndex++;
+					}
+				}
+			}
+			
+			Collections.sort(bTemp, brightnessComparator);
+			Collections.sort(dTemp, brightnessComparator);
+			Collections.sort(nTemp, brightnessComparator);
+			
+			for(int j = 0; j < drawWidth; j++) {
+				if(j < brightCount + brightRandom) {
+					if(bTemp.size() > 0) {
+						entriesArr[i][j] = bTemp.remove(0);
+					}
+				} else if (j > drawWidth - darkCount - darkRandom) {
+					if(dTemp.size() > 0) {
+						entriesArr[i][j] = dTemp.remove(0);
+					}
+				} else {
+					if(nTemp.size() > 0) {
+						entriesArr[i][j] = nTemp.remove(0);
+					}
+				}
 			}
 		}
 	}
