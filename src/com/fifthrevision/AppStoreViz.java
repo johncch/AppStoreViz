@@ -297,7 +297,7 @@ public class AppStoreViz extends PApplet implements IDataLoaderListener {
 	 * @param args
 	 */
 	public static void main(String[] args) {
-		PApplet.main(new String[] { "com.fifthrevision.AppStoreViz"} );
+		PApplet.main(new String[] { "--present","com.fifthrevision.AppStoreViz"} );
 	}
 
 }
