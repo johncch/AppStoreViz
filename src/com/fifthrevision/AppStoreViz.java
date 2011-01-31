@@ -165,6 +165,20 @@ public class AppStoreViz extends PApplet implements IDataLoaderListener {
 	}
 	
 	@Override
+	public void mousePressed() {
+		int tempX = startPointX + (mouseX) / zoomLevel;
+		int tempY = startPointY + (mouseY) / zoomLevel;
+		if(tempX > 0 && tempX < drawHeight && tempY > 0 && tempY < drawHeight) {
+			if(entriesArr[tempY][tempX] != null) {
+				AppStoreEntry e = entriesArr[tempY][tempX];
+				if(e.url != null) {
+					link("http://itunes.apple.com/" + e.url);
+				}
+			}
+		}
+	}
+	
+	@Override
 	public void keyPressed() {
 		keys[keyCode] = true;
 		
