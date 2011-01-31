@@ -1,6 +1,8 @@
 package com.fifthrevision;
 
 import java.awt.event.KeyEvent;
+import java.util.Calendar;
+import java.util.Date;
 
 import processing.core.PApplet;
 import processing.core.PImage;
@@ -23,6 +25,13 @@ public class AppStoreViz extends PApplet implements IDataLoaderListener {
 	
 	public static int ZOOM_THRESHOLD = 32;
 	public static int SHIFT_STEPS = 3;
+	
+	public static int PANEL_WIDTH = 400;
+	public static int PANEL_HEIGHT = 180;
+	public static int PANEL_OFFSET = 20;
+	public static int PANEL_PAD = 20;
+	
+	public static String[] MONTHS = {"Jan", "Feb", "March", "April", "May", "June", "July", "Aug", "Sept", "Oct", "Nov", "Dec"}; 
 	
 	// public static int DRAW_WIDTH = 550;
 	public int drawWidth;
@@ -83,22 +92,52 @@ public class AppStoreViz extends PApplet implements IDataLoaderListener {
 				}
 			}
 			
-			int tempX = (mouseX) / 2;
-			int tempY = (mouseY) / 2;
+			int tempX = startPointX + (mouseX) / zoomLevel;
+			int tempY = startPointY + (mouseY) / zoomLevel;
 			if(tempX > 0 && tempX < drawHeight && tempY > 0 && tempY < drawHeight) {
 				if(entriesArr[tempY][tempX] != null) {
 					AppStoreEntry e = entriesArr[tempY][tempX]; 
-					TColor d = e.colorOne;
-					fill(d.toARGB());
-					stroke(0);
-					rect(mouseX - zoomLevel, mouseY - zoomLevel, zoomLevel * 2, zoomLevel * 2);
+					TColor d = e.colorOne;					
 					fill(0);
 					text("H: " + d.hue(), mouseX - 50, mouseY + 10);
 					text("S: " + d.saturation(), mouseX - 50, mouseY + 30);
 					text("B: " + d.brightness(), mouseX - 50, mouseY + 50);
-					if(zoomLevel < ZOOM_THRESHOLD) {
-						PImage img = loadImage(FILEPATH + IMG_FOLDER + entriesArr[tempY][tempX].id + EXT_JPG);
+					PImage img = loadImage(FILEPATH + IMG_FOLDER + entriesArr[tempY][tempX].id + EXT_JPG);
+					if(zoomLevel <= ZOOM_THRESHOLD) {						
 						image(img, mouseX, mouseY);
+						fill(d.toARGB());
+						stroke(0);
+						rect(mouseX - zoomLevel, mouseY - zoomLevel, zoomLevel * 2, zoomLevel * 2);	
+					} else {
+						int thisX = (tempX - startPointX) * zoomLevel;
+						int thisY = (tempY - startPointY) * zoomLevel;
+						int thisW = (int)(zoomLevel * 1.5);
+						int offset = (thisW - zoomLevel) / 2;						
+						fill(0);
+						rect(thisX - offset - 4, thisY - offset - 4, thisW + 8, thisW + 8);
+						image(img, thisX - offset, thisY - offset, thisW, thisW);
+					}
+					
+					fill(0, 0, 0, 200);
+					// stroke(0, 0, 0, 80);
+					noStroke();
+					int left = WIDTH - PANEL_WIDTH - PANEL_OFFSET;
+					int top = HEIGHT - PANEL_HEIGHT - PANEL_OFFSET;
+					rect(left, top, PANEL_WIDTH, PANEL_HEIGHT);
+					fill(255);
+					text("Name: " + e.name, left + PANEL_PAD, top + PANEL_PAD);
+					text("Category: " + e.category, left + PANEL_PAD, top + PANEL_PAD + 20);
+					text("Price: $" + e.price, left + PANEL_PAD, top + PANEL_PAD + 40);
+					text("Version: " + e.version, left + PANEL_PAD, top + PANEL_PAD + 60);
+					text("Size: " + e.size + "MB", left + PANEL_PAD, top + PANEL_PAD + 80);
+					// Date date = new Date(e.released);
+					Calendar cal = Calendar.getInstance();
+					cal.setTimeInMillis(e.released);
+					//text("Released: " + date.getDate() + ", " + date.getMonth() + " " + date.getYear(), left + PANEL_PAD, top + PANEL_PAD + 100);
+					text("Released: " + cal.get(Calendar.DATE) + ", " + MONTHS[cal.get(Calendar.MONTH)] + " " + cal.get(Calendar.YEAR), left + PANEL_PAD, top + PANEL_PAD + 100);
+					text("Seller: " + e.seller, left + PANEL_PAD, top + PANEL_PAD + 120);
+					if(e.currRating != -1) {
+						text("Currently rated " + e.currRating + " stars", left + PANEL_PAD, top + PANEL_PAD + 140);
 					}
 				}
 			}
@@ -128,7 +167,6 @@ public class AppStoreViz extends PApplet implements IDataLoaderListener {
 	@Override
 	public void keyPressed() {
 		keys[keyCode] = true;
-		System.out.println(keyCode);
 		
 		if(state > 0) {
 			if(checkKey(157) && checkKey(KeyEvent.VK_EQUALS)) {
@@ -163,8 +201,8 @@ public class AppStoreViz extends PApplet implements IDataLoaderListener {
 				} else if (keyCode == LEFT) {
 					if(startPointX > 0) {
 						if(checkKey(SHIFT)) {
-							if(startPointX >= 3) {
-								startPointX -= 3;
+							if(startPointX >= SHIFT_STEPS) {
+								startPointX -= SHIFT_STEPS;
 							} else {
 								startPointX = 0;
 							}
